@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AgriSankalp</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.4.0/jspdf.umd.min.js"></script>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <style>
+    :root {
+      --primary: #2E8B57; --primary-dark: #1E6B47;
+      --primary-light: rgba(46,139,87,0.12);
+      --secondary: #FFB347; --accent: #6A5ACD;
+      --green: #4ade80; --blue: #60a5fa;
+      --glass: rgba(255,255,255,0.18);
+      --glass-border: rgba(255,255,255,0.28);
+      --shadow: 0 8px 32px rgba(0,0,0,0.13);
+      --dark: #2C3E50;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family: 'Outfit','Segoe UI',sans-serif;
+      background: #87CEEB; color:#fff;
+      transition: background-color 2s ease; overflow-x:hidden;
+    }
+    body.night-mode { background-color:#0b1021; }
+
+    /* ── NAVBAR ── */
+    #navbar {
+      position:fixed; top:0; left:0; width:100%; z-index:200;
+      background:rgba(255,255,255,0.15);
+      backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
+      border-bottom:1px solid var(--glass-border);
+      padding:0 2rem; display:flex; align-items:center;
+      justify-content:space-between; height:64px; transition:background 0.3s;
+    }
+    #navbar.scrolled { background:rgba(46,139,87,0.88); }
+    .nav-logo {
+      font-size:1.5rem; font-weight:700;
+      background:linear-gradient(45deg,var(--green),var(--accent));
+      -webkit-background-clip:text; background-clip:text; color:transparent;
+      cursor:pointer; user-select:none;
+    }
+    .nav-links { display:flex; gap:0.3rem; list-style:none; }
+    .nav-links li a {
+      color:#fff; text-decoration:none; padding:7px 14px;
+      border-radius:20px; font-weight:500; cursor:pointer;
+      transition:background 0.2s,color 0.2s;
+    }
+    .nav-links li a:hover { background:var(--primary-light); color:var(--green); }
+    .nav-auth { display:flex; gap:10px; align-items:center; }
+    .btn {
+      padding:9px 20px; border:none; border-radius:25px;
+      cursor:pointer; font-weight:600; font-family:inherit;
+      transition:transform 0.2s,box-shadow 0.2s;
+    }
+    .btn-primary {
+      background:linear-gradient(45deg,var(--secondary),#E69A3E);
+      color:var(--dark); box-shadow:0 4px 15px rgba(255,179,71,0.3);
+    }
+    .btn-primary:hover { transform:translateY(-2px); box-shadow:0 6px 20px rgba(255,179,71,0.4); }
+    .btn-secondary {
+      background:transparent; color:#fff;
+      border:1px solid rgba(255,255,255,0.6);
+    }
+    .btn-secondary:hover { background:rgba(255,255,255,0.1); transform:translateY(-2px); }
+    .btn-green {
+      background:linear-gradient(135deg,var(--green),#22c55e);
+      color:#000; font-weight:700;
+    }
+    .btn-green:hover { transform:translateY(-3px); box-shadow:0 6px 20px rgba(74,222,128,0.5); }
+    body.night-mode .btn-green { background:linear-gradient(135deg,var(--blue),#3b82f6); }
+
+    /* ── PAGES ── */
+    .page { display:none; min-height:100vh; }
+    .page.active { display:block; animation:fadeIn 0.4s ease; }
+
+    /* ── HOME 3D HERO ── */
+    #home { position:relative; width:100vw; height:100vh; overflow:hidden; }
+    #webgl-canvas {
+      position:absolute; top:0; left:0;
+      width:100%; height:100%; z-index:1;
+    }
+    .hero-ui {
+      position:absolute; inset:0; z-index:10;
+      display:flex; flex-direction:column;
+      justify-content:space-between;
+      padding:5.5rem 3rem 3rem; pointer-events:none;
+    }
+    .glass-panel {
+      background:var(--glass);
+      backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
+      border:1px solid var(--glass-border); border-radius:24px;
+      padding:2rem 2.5rem; box-shadow:var(--shadow);
+      pointer-events:auto; transition:background 2s,border 2s;
+    }
+    body.night-mode .glass-panel {
+      background:rgba(10,20,40,0.4);
+      border-color:rgba(200,220,255,0.1);
+    }
+    .hero-header { max-width:460px; animation:slideDown 1s ease-out; }
+    .hero-header h1 {
+      font-size:3.2rem; font-weight:700; line-height:1.1;
+      margin-bottom:0.8rem; text-transform:uppercase; letter-spacing:1px;
+    }
+    .hero-header h1 span {
+      color:var(--green); text-shadow:0 0 15px rgba(74,222,128,0.4);
+      transition:color 2s,text-shadow 2s;
+    }
+    body.night-mode .hero-header h1 span { color:var(--blue); text-shadow:0 0 15px rgba(96,165,250,0.4); }
+    .hero-header p { font-size:1.1rem; font-weight:300; margin-bottom:1.5rem; opacity:0.9; }
+    .hero-controls { display:flex; gap:12px; flex-wrap:wrap; }
+    .status-bar {
+      align-self:flex-end; display:flex; gap:2.5rem;
+      padding:1.2rem 2.5rem; animation:slideUp 1s ease-out;
+    }
+    .status-item { display:flex; flex-direction:column; }
+    .status-item .lbl { font-size:0.8rem; text-transform:uppercase; letter-spacing:1.5px; opacity:0.7; margin-bottom:3px; }
+    .status-item .val { font-size:1.3rem; font-weight:500; color:var(--green); transition:color 2s; }
+    body.night-mode .status-item .val { color:var(--blue); }
+
+    /* ── INNER PAGES ── */
+    .inner-page {
+      padding:100px 0 60px; min-height:100vh;
+      background:linear-gradient(135deg,#f5f7fa 0%,#c3cfe2 100%);
+      color:var(--dark);
+    }
+    .container { width:90%; max-width:1200px; margin:0 auto; padding:0 15px; }
+    .section-title {
+      text-align:center; margin-bottom:40px; font-size:2.2rem;
+      background:linear-gradient(45deg,var(--primary),var(--accent));
+      -webkit-background-clip:text; background-clip:text; color:transparent;
+      position:relative; display:inline-block; left:50%; transform:translateX(-50%);
+    }
+    .section-title::after {
+      content:''; position:absolute; bottom:-8px; left:0;
+      width:100%; height:3px;
+      background:linear-gradient(45deg,var(--primary),var(--accent));
+      border-radius:3px;
+    }
+    .form-box {
+      max-width:520px; margin:0 auto;
+      background:rgba(255,255,255,0.6);
+      backdrop-filter:blur(10px);
+      border:1px solid rgba(255,255,255,0.4);
+      padding:40px; border-radius:20px; box-shadow:var(--shadow);
+    }
+    .form-group { margin-bottom:22px; }
+    .form-group label { display:block; margin-bottom:7px; font-weight:600; color:var(--dark); }
+    .form-control {
+      width:100%; padding:13px 15px;
+      border:1px solid rgba(0,0,0,0.12); border-radius:10px;
+      font-size:1rem; font-family:inherit;
+      background:rgba(255,255,255,0.75); color:var(--dark);
+      transition:border-color 0.2s,box-shadow 0.2s;
+    }
+    .form-control:focus {
+      outline:none; border-color:var(--primary);
+      box-shadow:0 0 0 3px rgba(46,139,87,0.18);
+    }
+    .form-row { display:flex; gap:18px; }
+    .form-row .form-group { flex:1; }
+    .alert { padding:13px 16px; border-radius:10px; margin-bottom:18px; font-weight:500; font-size:0.95rem; }
+    .alert-success { background:rgba(46,139,87,0.15); color:var(--primary-dark); border:1px solid var(--primary); }
+    .alert-error   { background:rgba(220,53,69,0.15);  color:#721c24; border:1px solid #dc3545; }
+    .alert-warning { background:rgba(255,193,7,0.15);  color:#856404; border:1px solid #ffc107; }
+    .cards-grid {
+      display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
+      gap:24px; margin-top:28px;
+    }
+    .card {
+      background:rgba(255,255,255,0.6); backdrop-filter:blur(10px);
+      border:1px solid rgba(255,255,255,0.4);
+      border-radius:15px; padding:24px; box-shadow:var(--shadow);
+      cursor:pointer; transition:transform 0.3s,box-shadow 0.3s;
+    }
+    .card:hover { transform:translateY(-8px); box-shadow:0 15px 30px rgba(0,0,0,0.15); }
+    .card h3 { color:var(--primary); margin-bottom:8px; font-size:1.3rem; }
+    .card p { font-size:0.95rem; color:#444; margin-bottom:4px; }
+    .detail-box {
+      background:rgba(255,255,255,0.6); backdrop-filter:blur(10px);
+      border:1px solid rgba(255,255,255,0.4);
+      border-radius:20px; padding:40px; box-shadow:var(--shadow);
+      max-width:800px; margin:0 auto;
+    }
+    .farmer-header { display:flex; align-items:center; margin-bottom:28px; }
+    .farmer-avatar {
+      width:110px; height:110px; border-radius:50%;
+      object-fit:cover; margin-right:28px; border:3px solid var(--primary);
+    }
+    .farmer-info h2 { color:var(--primary); margin-bottom:8px; font-size:1.7rem; }
+    .farmer-info p { color:#444; margin-bottom:4px; }
+    .contract-box {
+      background:rgba(255,255,255,0.6); backdrop-filter:blur(10px);
+      border:1px solid rgba(255,255,255,0.4);
+      border-radius:20px; padding:40px; box-shadow:var(--shadow);
+      max-width:800px; margin:0 auto;
+    }
+    .graph-box {
+      background:rgba(255,255,255,0.6); backdrop-filter:blur(10px);
+      border:1px solid rgba(255,255,255,0.4);
+      border-radius:15px; padding:28px; box-shadow:var(--shadow); margin-top:28px;
+    }
+    .features-grid {
+      display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+      gap:28px; margin-top:40px;
+    }
+    .feature-card {
+      background:rgba(255,255,255,0.6); backdrop-filter:blur(10px);
+      border:1px solid rgba(255,255,255,0.4);
+      border-radius:15px; padding:36px 28px; box-shadow:var(--shadow);
+      text-align:center; transition:transform 0.3s,box-shadow 0.3s;
+      position:relative; overflow:hidden;
+    }
+    .feature-card::before {
+      content:''; position:absolute; top:0; left:0; width:100%; height:4px;
+      background:linear-gradient(45deg,var(--primary),var(--accent));
+      transform:scaleX(0); transform-origin:left; transition:transform 0.3s;
+    }
+    .feature-card:hover { transform:translateY(-12px); box-shadow:0 15px 30px rgba(0,0,0,0.15); }
+    .feature-card:hover::before { transform:scaleX(1); }
+    .feature-icon { font-size:3rem; margin-bottom:16px; display:inline-block; }
+    .feature-card h3 { color:var(--primary); margin-bottom:10px; font-size:1.3rem; }
+    .feature-card p { color:#555; font-size:0.95rem; }
+    footer {
+      background:var(--dark); color:#fff; padding:50px 0 20px; text-align:center;
+    }
+    .footer-grid {
+      display:flex; justify-content:space-between;
+      flex-wrap:wrap; gap:28px; margin-bottom:36px;
+    }
+    .footer-col { flex:1; min-width:220px; text-align:left; }
+    .footer-col h3 { color:var(--secondary); margin-bottom:16px; font-size:1.1rem; }
+    .footer-col p,.footer-col a {
+      color:rgba(255,255,255,0.75); font-size:0.95rem;
+      text-decoration:none; display:block; margin-bottom:6px;
+    }
+    .footer-col a:hover { color:#fff; }
+    .footer-bottom { border-top:1px solid rgba(255,255,255,0.1); padding-top:18px; font-size:0.9rem; opacity:0.7; }
+    @keyframes slideDown { from{transform:translateY(-30px);opacity:0} to{transform:translateY(0);opacity:1} }
+    @keyframes slideUp   { from{transform:translateY(30px);opacity:0}  to{transform:translateY(0);opacity:1} }
+    @keyframes fadeIn    { from{opacity:0} to{opacity:1} }
+    @media(max-width:768px){
+      .nav-links{display:none;}
+      .hero-header h1{font-size:2.2rem;}
+      .form-row{flex-direction:column;gap:0;}
+      .farmer-header{flex-direction:column;text-align:center;}
+      .farmer-avatar{margin-right:0;margin-bottom:18px;}
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── NAVBAR ── -->
+<nav id="navbar">
+  <div class="nav-logo" onclick="showPage('home')">🌾 AgriSankalp</div>
+  <ul class="nav-links">
+    <li><a onclick="showPage('home')">Home</a></li>
+    <li><a onclick="showPage('farmers')">Find Farmers</a></li>
+    <li><a onclick="showPage('contract')">Create Contract</a></li>
+    <li><a onclick="showPage('analytics')">Analytics</a></li>
+  </ul>
+  <div class="nav-auth" id="authButtons">
+    <button class="btn btn-secondary" onclick="showPage('login')">Login</button>
+    <button class="btn btn-primary" onclick="showPage('register')">Register</button>
+  </div>
+</nav>
+
+<!-- ══════════════════════════════════════
+     HOME — 3D Interactive Hero
+══════════════════════════════════════ -->
+<section id="home" class="page active">
+  <canvas id="webgl-canvas"></canvas>
+  <div class="hero-ui">
+    <div class="hero-header glass-panel">
+      <h1>Contract <span>Farming</span></h1>
+      <p>Explore the future of sustainable, cooperative agriculture.</p>
+      <div class="hero-controls">
+        <button id="timeToggle" class="btn btn-green" type="button">Switch to Night</button>
+        <button class="btn btn-primary" onclick="showPage('farmers')">Find Farmers</button>
+      </div>
+    </div>
+    <div class="status-bar glass-panel">
+      <div class="status-item">
+        <span class="lbl">Time</span>
+        <span class="val" id="timeValue">Daylight</span>
+      </div>
+      <div class="status-item">
+        <span class="lbl">Platform</span>
+        <span class="val">AgriSankalp</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     FEATURES (scrollable below hero)
+══════════════════════════════════════ -->
+<section id="features" class="page">
+  <div class="inner-page">
+    <div class="container">
+      <h2 class="section-title">Why Choose AgriSankalp?</h2>
+      <div class="features-grid">
+        <div class="feature-card"><div class="feature-icon">📄</div><h3>Easy Contract Creation</h3><p>Generate professional contracts and download as PDF instantly.</p></div>
+        <div class="feature-card"><div class="feature-icon">👨‍🌾</div><h3>Verified Farmers</h3><p>Connect with screened, reliable farmers across the country.</p></div>
+        <div class="feature-card"><div class="feature-icon">📊</div><h3>Data Analytics</h3><p>Track farming metrics and visualize data with interactive charts.</p></div>
+        <div class="feature-card"><div class="feature-icon">🔒</div><h3>Secure Platform</h3><p>Email verification and JWT-secured authentication protect your data.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     LOGIN
+══════════════════════════════════════ -->
+<section id="login" class="page">
+  <div class="inner-page">
+    <div class="container">
+      <div class="form-box">
+        <h2 class="section-title">Login</h2>
+        <div id="loginAlert"></div>
+        <div class="form-group">
+          <label for="usernameLogin">Username</label>
+          <input type="text" id="usernameLogin" class="form-control" placeholder="Enter your username">
+        </div>
+        <div class="form-group">
+          <label for="passwordLogin">Password</label>
+          <input type="password" id="passwordLogin" class="form-control" placeholder="Enter your password">
+        </div>
+        <button class="btn btn-primary" style="width:100%" onclick="login()">Login</button>
+        <p style="text-align:center;margin-top:14px;color:var(--dark)">
+          No account? <a href="#" onclick="showPage('register')" style="color:var(--primary)">Register</a>
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     REGISTER
+══════════════════════════════════════ -->
+<section id="register" class="page">
+  <div class="inner-page">
+    <div class="container">
+      <div class="form-box">
+        <h2 class="section-title">Register</h2>
+        <div id="registerAlert"></div>
+        <div class="form-group">
+          <label for="usernameRegister">Username</label>
+          <input type="text" id="usernameRegister" class="form-control" placeholder="Choose a username">
+        </div>
+        <div class="form-group">
+          <label for="emailRegister">Email</label>
+          <input type="email" id="emailRegister" class="form-control" placeholder="Enter your email">
+        </div>
+        <div class="form-group">
+          <label for="passwordRegister">Password</label>
+          <input type="password" id="passwordRegister" class="form-control" placeholder="Create a password">
+        </div>
+        <div class="form-group">
+          <label for="confirmPassword">Confirm Password</label>
+          <input type="password" id="confirmPassword" class="form-control" placeholder="Confirm your password">
+        </div>
+        <div class="form-group">
+          <label for="roleRegister">Role</label>
+          <select id="roleRegister" class="form-control">
+            <option value="company">Company</option>
+            <option value="farmer">Farmer</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" style="width:100%" onclick="register()">Register</button>
+        <p style="text-align:center;margin-top:14px;color:var(--dark)">
+          Have an account? <a href="#" onclick="showPage('login')" style="color:var(--primary)">Login</a>
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     EMAIL VERIFY
+══════════════════════════════════════ -->
+<section id="verify-email" class="page">
+  <div class="inner-page">
+    <div class="container">
+      <div class="form-box" style="text-align:center">
+        <h2 class="section-title">Email Verification</h2>
+        <div id="verifyAlert"></div>
+        <p style="margin:20px 0;color:var(--dark)">Check your email for a verification link, then come back to login.</p>
+        <button class="btn btn-secondary" style="color:var(--dark);border-color:var(--dark)" onclick="showPage('login')">Back to Login</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     FARMERS
+══════════════════════════════════════ -->
+<section id="farmers" class="page">
+  <div class="inner-page">
+    <div class="container">
+      <h2 class="section-title">Available Farmers</h2>
+      <div class="cards-grid" id="farmersList">
+        <p style="text-align:center;color:#666">Loading farmers...</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     FARMER DETAILS
+══════════════════════════════════════ -->
+<section id="farmer-details" class="page">
+  <div class="inner-page">
+    <div class="container">
+      <div class="detail-box" id="farmerDetailsContent">
+        <p style="text-align:center">Loading...</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     CONTRACT
+══════════════════════════════════════ -->
+<section id="contract" class="page">
+  <div class="inner-page">
+    <div class="container">
+      <h2 class="section-title">Create Contract</h2>
+      <div class="contract-box">
+        <div id="contractAlert"></div>
+        <div class="form-row">
+          <div class="form-group"><label for="companyName">Company Name</label><input type="text" id="companyName" class="form-control" required></div>
+          <div class="form-group"><label for="farmerName">Farmer Name</label><input type="text" id="farmerName" class="form-control" required></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label for="contractDate">Contract Date</label><input type="date" id="contractDate" class="form-control" required></div>
+          <div class="form-group"><label for="product">Product</label><input type="text" id="product" class="form-control" required></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label for="quantity">Quantity (units)</label><input type="number" id="quantity" class="form-control" required></div>
+          <div class="form-group"><label for="price">Price per Unit ($)</label><input type="number" id="price" class="form-control" step="0.01" required></div>
+        </div>
+        <div class="form-group"><label for="email">Email</label><input type="email" id="email" class="form-control" required></div>
+        <div class="form-group"><label for="image">Upload Image (Optional)</label><input type="file" id="image" class="form-control" accept="image/*"></div>
+        <button class="btn btn-primary" style="width:100%" onclick="generatePDF()">Generate Contract PDF</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     ANALYTICS
+══════════════════════════════════════ -->
+<section id="analytics" class="page">
+  <div class="inner-page">
+    <div class="container">
+      <h2 class="section-title">Analytics Dashboard</h2>
+      <div class="form-box">
+        <div class="form-group">
+          <label for="measurement">Measurement Value</label>
+          <input type="number" id="measurement" class="form-control" placeholder="Enter value" step="0.01">
+        </div>
+        <div class="form-group">
+          <label for="measurementType">Type</label>
+          <select id="measurementType" class="form-control">
+            <option value="production">Production</option>
+            <option value="quality">Quality</option>
+            <option value="yield">Yield</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" style="width:100%" onclick="measureNow()">Add Measurement</button>
+      </div>
+      <div class="graph-box"><div id="graph"></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     FOOTER
+══════════════════════════════════════ -->
+<footer>
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-col">
+        <h3>AgriSankalp</h3>
+        <p>Connecting farmers with businesses for assured contract farming.</p>
+      </div>
+      <div class="footer-col">
+        <h3>Quick Links</h3>
+        <a onclick="showPage('home')">Home</a>
+        <a onclick="showPage('farmers')">Find Farmers</a>
+        <a onclick="showPage('contract')">Create Contract</a>
+        <a onclick="showPage('analytics')">Analytics</a>
+      </div>
+      <div class="footer-col">
+        <h3>Contact</h3>
+        <p>Email: info@agrisankalp.com</p>
+        <p>Phone: +1 (555) 123-4567</p>
+      </div>
+    </div>
+    <div class="footer-bottom">&copy; 2024 AgriSankalp. All rights reserved.</div>
+  </div>
+</footer>
+
+<!-- Three.js via CDN (importmap) -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+// ── 3D SCENE ──────────────────────────────────────────────
+const canvas = document.querySelector('#webgl-canvas');
+const scene  = new THREE.Scene();
+scene.background = new THREE.Color('#87CEEB');
+
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.set(16, 14, 22);
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.5;
+controls.maxPolarAngle = Math.PI / 2 - 0.05;
+controls.minDistance = 15;
+controls.maxDistance = 70;
+
+// Lighting
+const ambientLight = new THREE.AmbientLight('#ffffff', 0.6);
+scene.add(ambientLight);
+
+const sunLight = new THREE.DirectionalLight('#ffffff', 2.0);
+sunLight.position.set(20, 40, 20);
+sunLight.castShadow = true;
+sunLight.shadow.mapSize.width = 2048;
+sunLight.shadow.mapSize.height = 2048;
+sunLight.shadow.camera.near = 0.5;
+sunLight.shadow.camera.far = 100;
+sunLight.shadow.camera.left = -20; sunLight.shadow.camera.right = 20;
+sunLight.shadow.camera.top = 20;  sunLight.shadow.camera.bottom = -20;
+scene.add(sunLight);
+
+const moonLight = new THREE.DirectionalLight('#60a5fa', 0.0);
+moonLight.position.set(-20, 30, -20);
+moonLight.castShadow = true;
+scene.add(moonLight);
+
+// World geometry
+const worldGroup = new THREE.Group();
+worldGroup.rotation.y = Math.PI;
+scene.add(worldGroup);
+
+const island = new THREE.Mesh(
+  new THREE.CylinderGeometry(18, 15, 8, 8),
+  new THREE.MeshStandardMaterial({ color: '#8B4513', flatShading: true })
+);
+island.position.y = -4; island.castShadow = true; island.receiveShadow = true;
+worldGroup.add(island);
+
+const grass = new THREE.Mesh(
+  new THREE.CylinderGeometry(21.5, 21, 1, 64),
+  new THREE.MeshStandardMaterial({ color: '#5a9e3a' })
+);
+grass.position.y = 0.5; grass.receiveShadow = true;
+worldGroup.add(grass);
+
+const track = new THREE.Mesh(
+  new THREE.TorusGeometry(19.5, 0.4, 8, 64),
+  new THREE.MeshStandardMaterial({ color: '#7f8fa6', flatShading: true })
+);
+track.rotation.x = -Math.PI / 2; track.position.y = 1.0; track.receiveShadow = true;
+worldGroup.add(track);
+
+const trainPivot = new THREE.Group();
+worldGroup.add(trainPivot);
+
+// GLB models (relative paths — place farmland.glb & train.glb in same folder)
+const loader = new GLTFLoader();
+loader.load('./assets/farmland.glb', (gltf) => {
+  const fm = gltf.scene;
+  const box = new THREE.Box3().setFromObject(fm);
+  const size = new THREE.Vector3(); box.getSize(size);
+  const center = new THREE.Vector3(); box.getCenter(center);
+  fm.position.set(-center.x, -box.min.y, -center.z);
+  const pivot = new THREE.Group(); pivot.add(fm);
+  pivot.scale.setScalar(28 / Math.max(size.x, size.z));
+  pivot.position.y = 1.0;
+  worldGroup.add(pivot);
+  pivot.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+}, undefined, () => {});
+
+loader.load('./assets/train.glb', (gltf) => {
+  const tm = gltf.scene;
+  const box = new THREE.Box3().setFromObject(tm);
+  const size = new THREE.Vector3(); box.getSize(size);
+  const center = new THREE.Vector3(); box.getCenter(center);
+  tm.position.set(-center.x, -box.min.y, -center.z);
+  const tc = new THREE.Group(); tc.add(tm);
+  tc.scale.setScalar(6.3 / size.x);
+  tc.position.set(19.5, 1.2, 0);
+  tc.rotation.y = Math.PI / 2;
+  trainPivot.add(tc);
+  tc.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+}, undefined, () => {});
+
+// Day / Night toggle
+let isDay = true;
+const timeToggleBtn = document.getElementById('timeToggle');
+const timeValue     = document.getElementById('timeValue');
+
+function lerpColor(from, to, t) {
+  return new THREE.Color(
+    from.r + (to.r - from.r) * t,
+    from.g + (to.g - from.g) * t,
+    from.b + (to.b - from.b) * t
+  );
+}
+
+timeToggleBtn.addEventListener('click', () => {
+  isDay = !isDay;
+  document.body.classList.toggle('night-mode', !isDay);
+  timeToggleBtn.innerText = isDay ? 'Switch to Night' : 'Switch to Day';
+  timeValue.innerText     = isDay ? 'Daylight' : 'Nighttime';
+
+  const targetSun     = isDay ? 2.0 : 0.0;
+  const targetMoon    = isDay ? 0.0 : 1.0;
+  const targetAmbient = isDay ? 0.6 : 0.2;
+  const targetSky     = isDay ? new THREE.Color('#87CEEB') : new THREE.Color('#0b1021');
+  const startSky      = scene.background.clone();
+  const startSun      = sunLight.intensity;
+  const startMoon     = moonLight.intensity;
+  const startAmbient  = ambientLight.intensity;
+  let t = 0;
+  const dur = 120; // frames
+  function tween() {
+    t++;
+    const p = Math.min(t / dur, 1);
+    sunLight.intensity     = startSun     + (targetSun     - startSun)     * p;
+    moonLight.intensity    = startMoon    + (targetMoon    - startMoon)    * p;
+    ambientLight.intensity = startAmbient + (targetAmbient - startAmbient) * p;
+    scene.background.copy(lerpColor(startSky, targetSky, p));
+    if (p < 1) requestAnimationFrame(tween);
+  }
+  tween();
+});
+
+// Animation loop
+const clock = new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  trainPivot.rotation.y += clock.getDelta() * 0.8;
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// Only run 3D when home page is visible; pause renderer otherwise
+const homeSection = document.getElementById('home');
+const obs = new MutationObserver(() => {
+  renderer.setAnimationLoop(homeSection.classList.contains('active') ? null : null);
+});
+obs.observe(homeSection, { attributes: true, attributeFilter: ['class'] });
+</script>
+
+<script>
+// ── APP LOGIC ─────────────────────────────────────────────
+const API_URL = 'http://localhost:5000/api';
+let currentUser = null, authToken = null, previousMeasurements = [];
+
+document.addEventListener('DOMContentLoaded', () => {
+  checkAuth();
+  handleEmailVerification();
+  const today = new Date().toISOString().split('T')[0];
+  const cd = document.getElementById('contractDate');
+  if (cd) cd.value = today;
+});
+
+window.addEventListener('scroll', () => {
+  document.getElementById('navbar').classList.toggle('scrolled', window.scrollY > 50);
+});
+
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if (id === 'farmers')   loadFarmerListings();
+  if (id === 'analytics') loadMeasurements();
+  window.scrollTo(0, 0);
+}
+
+function showAlert(elId, msg, type = 'success') {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  el.innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
+  setTimeout(() => { el.innerHTML = ''; }, 5000);
+}
+
+function checkAuth() {
+  authToken = localStorage.getItem('authToken');
+  const ud = localStorage.getItem('userData');
+  if (authToken && ud) { currentUser = JSON.parse(ud); updateAuthButtons(); }
+}
+
+function handleEmailVerification() {
+  const token = new URLSearchParams(window.location.search).get('token');
+  if (token) verifyEmail(token);
+}
+
+async function verifyEmail(token) {
+  try {
+    const r = await fetch(`${API_URL}/auth/verify-email/${token}`);
+    const d = await r.json();
+    showAlert('verifyAlert', d.message, r.ok ? 'success' : 'error');
+    showPage('verify-email');
+    if (r.ok) setTimeout(() => showPage('login'), 3000);
+  } catch { showAlert('verifyAlert', 'Verification failed.', 'error'); showPage('verify-email'); }
+}
+
+async function register() {
+  const username = document.getElementById('usernameRegister').value.trim();
+  const email    = document.getElementById('emailRegister').value.trim();
+  const password = document.getElementById('passwordRegister').value;
+  const confirm  = document.getElementById('confirmPassword').value;
+  const role     = document.getElementById('roleRegister').value;
+  if (!username || !email || !password) return showAlert('registerAlert', 'Please fill in all fields', 'error');
+  if (password !== confirm) return showAlert('registerAlert', 'Passwords do not match', 'error');
+  if (password.length < 6) return showAlert('registerAlert', 'Password must be at least 6 characters', 'error');
+  try {
+    const r = await fetch(`${API_URL}/auth/register`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, email, password, role })
+    });
+    const d = await r.json();
+    showAlert('registerAlert', d.message || (r.ok ? 'Registered!' : 'Registration failed'), r.ok ? 'success' : 'error');
+    if (r.ok) setTimeout(() => showPage('verify-email'), 2000);
+  } catch { showAlert('registerAlert', 'Network error.', 'error'); }
+}
+
+async function login() {
+  const username = document.getElementById('usernameLogin').value.trim();
+  const password = document.getElementById('passwordLogin').value;
+  if (!username || !password) return showAlert('loginAlert', 'Please fill in all fields', 'error');
+  try {
+    const r = await fetch(`${API_URL}/auth/login`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const d = await r.json();
+    if (r.ok) {
+      authToken = d.token; currentUser = d.user;
+      localStorage.setItem('authToken', authToken);
+      localStorage.setItem('userData', JSON.stringify(currentUser));
+      showAlert('loginAlert', 'Login successful!', 'success');
+      updateAuthButtons();
+      setTimeout(() => showPage('home'), 1000);
+    } else {
+      showAlert('loginAlert', d.message || 'Login failed', d.isVerified === false ? 'warning' : 'error');
+    }
+  } catch { showAlert('loginAlert', 'Network error.', 'error'); }
+}
+
+function logout() {
+  currentUser = null; authToken = null;
+  localStorage.removeItem('authToken'); localStorage.removeItem('userData');
+  updateAuthButtons(); showPage('home');
+}
+
+function updateAuthButtons() {
+  const el = document.getElementById('authButtons');
+  el.innerHTML = currentUser
+    ? `<span style="color:#fff;font-weight:600;margin-right:12px">Welcome, ${currentUser.username}</span>
+       <button class="btn btn-secondary" onclick="logout()">Logout</button>`
+    : `<button class="btn btn-secondary" onclick="showPage('login')">Login</button>
+       <button class="btn btn-primary" onclick="showPage('register')">Register</button>`;
+}
+
+async function loadFarmerListings() {
+  const list = document.getElementById('farmersList');
+  list.innerHTML = '<p style="text-align:center;color:#666">Loading farmers...</p>';
+  try {
+    const r = await fetch(`${API_URL}/farmers`);
+    const farmers = await r.json();
+    if (!farmers.length) { list.innerHTML = '<p style="text-align:center;color:#666">No farmers available.</p>'; return; }
+    list.innerHTML = '';
+    farmers.forEach(f => {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `<h3>${f.name}</h3>
+        <p><strong>Company:</strong> ${f.company}</p>
+        <p><strong>Location:</strong> ${f.location}</p>
+        <p><strong>Age:</strong> ${f.age}</p>
+        ${f.experience ? `<p><strong>Experience:</strong> ${f.experience} yrs</p>` : ''}`;
+      card.addEventListener('click', () => showFarmerDetails(f._id));
+      list.appendChild(card);
+    });
+  } catch { list.innerHTML = '<p style="text-align:center;color:red">Failed to load farmers.</p>'; }
+}
+
+async function showFarmerDetails(id) {
+  const el = document.getElementById('farmerDetailsContent');
+  el.innerHTML = '<p style="text-align:center">Loading...</p>';
+  try {
+    const r = await fetch(`${API_URL}/farmers/${id}`);
+    const f = await r.json();
+    el.innerHTML = `
+      <div class="farmer-header">
+        <img src="${f.image}" alt="${f.name}" class="farmer-avatar">
+        <div class="farmer-info">
+          <h2>${f.name}</h2>
+          <p><strong>Company:</strong> ${f.company}</p>
+          <p><strong>Location:</strong> ${f.location}</p>
+          <p><strong>Age:</strong> ${f.age}</p>
+          ${f.experience ? `<p><strong>Experience:</strong> ${f.experience} yrs</p>` : ''}
+        </div>
+      </div>
+      <h3 style="color:var(--primary);margin-bottom:10px">About</h3>
+      <p style="color:#444">${f.description}</p>
+      ${f.specialization?.length ? `<p style="margin-top:10px;color:#444"><strong>Specialization:</strong> ${f.specialization.join(', ')}</p>` : ''}
+      <div style="margin-top:28px;display:flex;gap:14px;justify-content:center">
+        <button class="btn btn-primary" onclick="createContractWithFarmer('${f.name}')">Create Contract</button>
+        <button class="btn btn-secondary" style="color:var(--dark);border-color:var(--dark)" onclick="showPage('farmers')">Back</button>
+      </div>`;
+    showPage('farmer-details');
+  } catch { el.innerHTML = '<p style="text-align:center;color:red">Failed to load details.</p>'; }
+}
+
+function createContractWithFarmer(name) {
+  document.getElementById('farmerName').value = name;
+  showPage('contract');
+}
+
+async function generatePDF() {
+  if (!authToken) return showAlert('contractAlert', 'Please login to create contracts', 'error');
+  const { jsPDF } = window.jspdf;
+  const companyName  = document.getElementById('companyName').value.trim();
+  const farmerName   = document.getElementById('farmerName').value.trim();
+  const contractDate = document.getElementById('contractDate').value;
+  const product      = document.getElementById('product').value.trim();
+  const quantity     = document.getElementById('quantity').value;
+  const price        = document.getElementById('price').value;
+  const email        = document.getElementById('email').value.trim();
+  const file         = document.getElementById('image').files[0];
+  if (!companyName || !farmerName || !contractDate || !product || !quantity || !price || !email)
+    return showAlert('contractAlert', 'Please fill in all required fields', 'error');
+  const totalAmount = (parseFloat(quantity) * parseFloat(price)).toFixed(2);
+  try {
+    const r = await fetch(`${API_URL}/contracts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+      body: JSON.stringify({ companyName, farmerName, contractDate, product,
+        quantity: parseFloat(quantity), pricePerUnit: parseFloat(price), email,
+        farmerId: '000000000000000000000000' })
+    });
+    if (!r.ok) { const e = await r.json(); return showAlert('contractAlert', e.message || 'Failed to save', 'error'); }
+    showAlert('contractAlert', 'Contract saved! Generating PDF...', 'success');
+  } catch { return showAlert('contractAlert', 'Failed to save contract', 'error'); }
+
+  const pdf = new jsPDF();
+  pdf.setFillColor(46, 139, 87); pdf.rect(0, 0, 210, 40, 'F');
+  pdf.setFontSize(24); pdf.setTextColor(255,255,255);
+  pdf.text('AGRISANKALP', 105, 20, { align: 'center' });
+  pdf.setFontSize(14); pdf.text('FARMING CONTRACT AGREEMENT', 105, 30, { align: 'center' });
+  pdf.setFontSize(12); pdf.setTextColor(0,0,0);
+  pdf.setFont(undefined,'bold'); pdf.text('Contract Details', 20, 55); pdf.setFont(undefined,'normal');
+  pdf.text(`Company: ${companyName}`, 20, 65);
+  pdf.text(`Farmer: ${farmerName}`, 20, 73);
+  pdf.text(`Date: ${contractDate}`, 20, 81);
+  pdf.text(`Product: ${product}`, 20, 89);
+  pdf.text(`Quantity: ${quantity} units`, 20, 97);
+  pdf.text(`Price/Unit: $${price}`, 20, 105);
+  pdf.setFont(undefined,'bold'); pdf.text(`Total: $${totalAmount}`, 20, 113); pdf.setFont(undefined,'normal');
+  pdf.text(`Email: ${email}`, 20, 121);
+  pdf.setFont(undefined,'bold'); pdf.text('Terms and Conditions:', 20, 140); pdf.setFont(undefined,'normal');
+  const terms = [
+    '1. The farmer agrees to deliver the specified quantity by the agreed date.',
+    '2. The company agrees to pay upon delivery and inspection.',
+    '3. Quality standards must meet industry specifications.',
+    '4. Disputes will be resolved through mutual agreement or arbitration.',
+    '5. This contract is binding and cannot be terminated without cause.',
+    '6. Payment terms: Net 30 days from delivery.',
+    '7. Both parties agree to maintain confidentiality of contract terms.'
+  ];
+  let y = 150;
+  terms.forEach(t => { const lines = pdf.splitTextToSize(t, 170); pdf.text(lines, 20, y); y += lines.length * 7; });
+  pdf.line(30, 230, 80, 230); pdf.line(130, 230, 180, 230);
+  pdf.setFontSize(10);
+  pdf.text('Company Representative', 40, 237); pdf.text('Farmer', 145, 237);
+  pdf.text('Date: __________', 40, 245); pdf.text('Date: __________', 130, 245);
+  pdf.setFontSize(8); pdf.setTextColor(128,128,128);
+  pdf.text('AgriSankalp - Assured Contract Farming System', 105, 280, { align: 'center' });
+  pdf.text('www.agrisankalp.com | info@agrisankalp.com', 105, 285, { align: 'center' });
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = e => { pdf.addImage(e.target.result,'JPEG',160,50,35,35); pdf.save(`AgriSankalp-${companyName}-${farmerName}.pdf`); };
+    reader.readAsDataURL(file);
+  } else { pdf.save(`AgriSankalp-${companyName}-${farmerName}.pdf`); }
+}
+
+async function loadMeasurements() {
+  if (!authToken) { previousMeasurements = []; plotData(); return; }
+  try {
+    const r = await fetch(`${API_URL}/measurements`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+    if (r.ok) {
+      const data = await r.json();
+      data.sort((a,b) => new Date(a.createdAt) - new Date(b.createdAt));
+      previousMeasurements = data.map(m => m.value);
+    } else { previousMeasurements = []; }
+  } catch { previousMeasurements = []; }
+  plotData();
+}
+
+async function measureNow() {
+  const val  = document.getElementById('measurement').value;
+  const type = document.getElementById('measurementType').value;
+  if (!val) return alert('Please enter a measurement value');
+  if (!authToken) return alert('Please login to save measurements');
+  try {
+    const r = await fetch(`${API_URL}/measurements`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+      body: JSON.stringify({ value: parseFloat(val), type })
+    });
+    if (r.ok) {
+      await loadMeasurements();
+      document.getElementById('measurement').value = '';
+      alert('Measurement saved!');
+    } else { const e = await r.json(); alert('Failed: ' + (e.message || 'Unknown error')); }
+  } catch { alert('Network error.'); }
+}
+
+function plotData() {
+  const el = document.getElementById('graph');
+  if (!previousMeasurements.length) {
+    el.innerHTML = '<p style="text-align:center;padding:40px;color:#666">No measurements yet. Add one above to see the chart.</p>';
+    return;
+  }
+  Plotly.newPlot(el, [{
+    x: previousMeasurements.map((_,i) => i+1),
+    y: previousMeasurements,
+    type: 'scatter', mode: 'lines+markers',
+    marker: { color:'#2E8B57', size:10, line:{ color:'#1E6B47', width:2 } },
+    line: { color:'#2E8B57', width:3, shape:'spline' },
+    name: 'Production Value'
+  }], {
+    title: { text:'Real-Time Production Measurements', font:{ size:18, color:'#2C3E50' } },
+    xaxis: { title:'Measurement Index', gridcolor:'rgba(0,0,0,0.1)', showgrid:true, zeroline:false },
+    yaxis: { title:'Value', gridcolor:'rgba(0,0,0,0.1)', showgrid:true, zeroline:false },
+    paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(255,255,255,0.5)',
+    font:{ color:'#2C3E50', family:'Outfit,Segoe UI,sans-serif' },
+    margin:{ l:60, r:40, t:60, b:60 }, hovermode:'closest', showlegend:true
+  }, { responsive:true, displayModeBar:true, displaylogo:false });
+}
+</script>
+</body>
+</html>
